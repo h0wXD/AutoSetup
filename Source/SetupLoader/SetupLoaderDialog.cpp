@@ -114,7 +114,7 @@ void SetupLoaderDialog::ShowError(TCHAR *pszMessage)
 void SetupLoaderDialog::OnBnClickedButtonLaunch()
 {
 	STARTUPINFO startupInfo;
-    PROCESS_INFORMATION processInformation;
+	PROCESS_INFORMATION processInformation;
 
 	memset(&startupInfo, 0, sizeof(startupInfo));
 	memset(&processInformation, 0, sizeof(processInformation));

@@ -5,6 +5,8 @@ VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SetupLoader", "Source\SetupLoader\SetupLoader.vcxproj", "{C748CF01-9E24-4139-8169-E34B2D39E8AA}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AutoSetup", "Source\AutoSetup\AutoSetup.vcxproj", "{087F9BA1-119B-49A2-982A-8AE7598F5ABE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
