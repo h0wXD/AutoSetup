@@ -2,35 +2,76 @@
 #include "stdafx.hpp"
 #include "HookManager.hpp"
 
-#include <memory>
+#include <mutex>
 #include <thread>
+#include <string>
+#include <process.h>
 
-std::thread *g_pHookThread = nullptr;
-bool g_bIsRunning = false;
+HANDLE g_hWakeEvent = NULL;
+HANDLE g_hThreadHandle = NULL;
 
-BOOL WINAPI DllMain(HMODULE hDllHandle, DWORD dwReason, LPVOID lpReserved)
+unsigned int __stdcall ThreadProc(void *_pParam) 
 {
-	switch (dwReason)
+	HookManager hookManager;
+
+	hookManager.Hook();
+
+	::WaitForSingleObject(g_hWakeEvent, INFINITE);
+
+	return 0;
+}
+
+BOOL WINAPI DllMain(HMODULE _hDllHandle, DWORD _dwReason, LPVOID _lpReserved)
+{
+	switch (_dwReason)
 	{
 		case DLL_PROCESS_ATTACH:
 		{
-			if (g_pHookThread == nullptr)
+			if (g_hThreadHandle == NULL)
 			{
-				g_bIsRunning = true;
-				g_pHookThread = new std::thread();
+				if ((g_hWakeEvent = ::CreateEvent(NULL, TRUE, FALSE, NULL)) == INVALID_HANDLE_VALUE)
+				{
+					g_hWakeEvent = NULL;
+
+					MessageBox(NULL, "Could not create wait event!", "Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR);
+					break;
+				}
+
+				::ResetEvent(g_hWakeEvent);
+
+				if ((g_hThreadHandle = (HANDLE)_beginthreadex(NULL, 0, ThreadProc, NULL, 0, NULL)) == INVALID_HANDLE_VALUE)
+				{
+					::CloseHandle(g_hWakeEvent);
+					g_hWakeEvent = NULL;
+					g_hThreadHandle = NULL;
+
+					MessageBox(NULL, "Could not create thread!", "Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR);
+					break;
+				}
 			}
 			break;
 		}
 		case DLL_PROCESS_DETACH:
 		{
-			if (g_pHookThread != nullptr)
+			if (g_hThreadHandle != NULL)
 			{
-				if (g_pHookThread->joinable())
+				::SetEvent(g_hWakeEvent);
+				
+				if (::WaitForSingleObject(g_hThreadHandle, INFINITE) != WAIT_OBJECT_0)
 				{
-					g_pHookThread->join();
+					MessageBox(NULL, "Could not signal thread!", "Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR);
 				}
-				delete g_pHookThread;
+
+				::CloseHandle(g_hThreadHandle);
+				g_hThreadHandle = NULL;
+
+				if (g_hWakeEvent != NULL)
+				{
+					::CloseHandle(g_hWakeEvent);
+					g_hWakeEvent = NULL;
+				}
 			}
+
 			break;
 		}
 		case DLL_THREAD_ATTACH:
