@@ -21,12 +21,18 @@
     <ClCompile Include="HookManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Windows.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HookManager.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="stdafx.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Windows.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

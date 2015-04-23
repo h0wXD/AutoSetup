@@ -121,6 +121,11 @@
   <ItemGroup>
     <Image Include="res\SetupLoader.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AutoSetup\AutoSetup.vcxproj">
+      <Project>{087f9ba1-119b-49a2-982a-8ae7598f5abe}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

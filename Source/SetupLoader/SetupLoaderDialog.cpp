@@ -106,8 +106,16 @@ void SetupLoaderDialog::OnBnClickedButtonBrowse()
 	GetDlgItem(IDC_BUTTON_LAUNCH)->EnableWindow(m_sFilePath.GetLength() != 0);
 }
 
-void SetupLoaderDialog::ShowError(TCHAR *pszMessage)
+void SetupLoaderDialog::ShowError(TCHAR *pszMessage, unsigned int uiError /*= ERROR_SUCCESS*/)
 {
+	if (uiError)
+	{
+		wchar_t szBuffer[1024] = {0};
+		std::swprintf(szBuffer, sizeof(szBuffer), L"%s [ErrorCode: 0x%08x]", pszMessage, uiError);
+		MessageBox(szBuffer, L"Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR);
+		return;
+	}
+
 	MessageBox(pszMessage, L"Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR);
 }
 
@@ -120,19 +128,21 @@ void SetupLoaderDialog::OnBnClickedButtonLaunch()
 	memset(&processInformation, 0, sizeof(processInformation));
 
 	BOOL bResult = ::CreateProcess(m_sFilePath, NULL, NULL, NULL, FALSE,
-        CREATE_SUSPENDED,
-        NULL,
-        NULL,
-        &startupInfo,
-        &processInformation);
+        CREATE_SUSPENDED, NULL, NULL, &startupInfo, &processInformation);
 	
 	HANDLE processHandle = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, processInformation.dwProcessId);
 	if (processHandle != NULL)
 	{
 		char szCurrentPath[MAX_PATH];
-		const char * pszDllFile = "AutoSetup_x86.dll";
 		std::size_t nLength;
+		BOOL bIsWow64 = FALSE;
+		BOOL bError = FALSE;
+		DWORD dwLastError = ERROR_SUCCESS;
+		void * pLoadLibrary = nullptr;
+		void * pDllEntry = nullptr;
 
+		::IsWow64Process(processHandle, &bIsWow64);
+		
 		memset(szCurrentPath, 0, sizeof(szCurrentPath));
 		::GetModuleFileNameA(NULL, szCurrentPath, sizeof(szCurrentPath));    
 		
@@ -145,22 +155,42 @@ void SetupLoaderDialog::OnBnClickedButtonLaunch()
 			}
 		}
 
-		strcat_s(szCurrentPath, pszDllFile);
+		strcat_s(szCurrentPath, bIsWow64 ? "AutoSetup_x86.dll" : "AutoSetup_x64.dll");
 		nLength = std::strlen(szCurrentPath);
 
-		void * pLoadLibrary = (void *)::GetProcAddress(GetModuleHandle(L"kernel32.dll"), "LoadLibraryA");
-		void * pDllEntry = (void *)::VirtualAllocEx(processHandle, NULL, nLength, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-
-		if (::WriteProcessMemory(processHandle, (LPVOID)pDllEntry, pszDllFile, nLength, NULL) == FALSE)
+		pLoadLibrary = (void *)::GetProcAddress(GetModuleHandle(L"kernel32.dll"), "LoadLibraryA");
+		
+		if (!pLoadLibrary)
 		{
-			ShowError(L"Couldn't write process memory!");
+			ShowError(L"Couldn't find LoadLibrary!", ::GetLastError());
+		}
+		::SetLastError(ERROR_SUCCESS);
+
+		pDllEntry = (void *)::VirtualAllocEx(processHandle, NULL, nLength + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+		if (!pDllEntry)
+		{
+			bError |= TRUE;
+			ShowError(L"Couldn't allocate memory in suspended process!", ::GetLastError());
+		}
+		::SetLastError(ERROR_SUCCESS);
+
+		if (!bError &&
+			::WriteProcessMemory(processHandle, (LPVOID)pDllEntry, szCurrentPath, nLength, NULL) == FALSE ||
+			(dwLastError = ::GetLastError()))
+		{
+			bError |= TRUE;
+			ShowError(L"Couldn't write process memory!", dwLastError ? dwLastError : ::GetLastError());
+			::SetLastError(ERROR_SUCCESS);
 		}
 
-		HANDLE threadHandle = ::CreateRemoteThread(processHandle, NULL, NULL, (LPTHREAD_START_ROUTINE)pLoadLibrary, pDllEntry, NULL, NULL);
-
-		if (threadHandle == INVALID_HANDLE_VALUE)
+		if (!bError &&
+			(::CreateRemoteThread(processHandle, NULL, NULL, (LPTHREAD_START_ROUTINE)pLoadLibrary, pDllEntry, NULL, NULL)) == INVALID_HANDLE_VALUE ||
+			(dwLastError = ::GetLastError()))
 		{
-			ShowError(L"Couldn't create remote thread!");
+			// 0x00000005 = ACCESS_VIOLATION
+			ShowError(L"Couldn't create remote thread!", dwLastError ? dwLastError : ::GetLastError());
+			::SetLastError(ERROR_SUCCESS);
 		}
 
 		::CloseHandle(processHandle);
@@ -170,5 +200,8 @@ void SetupLoaderDialog::OnBnClickedButtonLaunch()
 		ShowError(L"Could not inject DLL!");
 	}
 
-	DWORD dwResult = ::ResumeThread(processInformation.hThread);
+	if (::ResumeThread(processInformation.hThread) == FALSE)
+	{
+		ShowError(L"Could not resume process!");
+	}
 }

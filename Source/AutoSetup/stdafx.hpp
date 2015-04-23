@@ -6,3 +6,4 @@
 #endif
 
 #include <Windows.h>
+#include <memory>

@@ -12,9 +12,8 @@ HANDLE g_hThreadHandle = NULL;
 
 unsigned int __stdcall ThreadProc(void *_pParam) 
 {
-	HookManager hookManager;
-
-	hookManager.Hook();
+	g_pHookManager.reset(new HookManager());
+	g_pHookManager->Hook();
 
 	::WaitForSingleObject(g_hWakeEvent, INFINITE);
 

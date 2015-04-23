@@ -14,7 +14,7 @@ public:
 	virtual void DoDataExchange(CDataExchange *pDX);
 
 private:
-	void ShowError(TCHAR *pszMessage);
+	void ShowError(TCHAR *pszMessage, unsigned int uiError = ERROR_SUCCESS);
 
 protected:
 	HICON m_hIcon;
