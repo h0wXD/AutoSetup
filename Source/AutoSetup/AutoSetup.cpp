@@ -12,9 +12,6 @@ HANDLE g_hThreadHandle = NULL;
 
 unsigned int __stdcall ThreadProc(void *_pParam) 
 {
-	g_pHookManager.reset(new HookManager());
-	g_pHookManager->Hook();
-
 	::WaitForSingleObject(g_hWakeEvent, INFINITE);
 
 	return 0;
@@ -32,7 +29,7 @@ BOOL WINAPI DllMain(HMODULE _hDllHandle, DWORD _dwReason, LPVOID _lpReserved)
 				{
 					g_hWakeEvent = NULL;
 
-					MessageBox(NULL, "Could not create wait event!", "Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR);
+					ShowError("Could not create wait event!");
 					break;
 				}
 
@@ -44,8 +41,14 @@ BOOL WINAPI DllMain(HMODULE _hDllHandle, DWORD _dwReason, LPVOID _lpReserved)
 					g_hWakeEvent = NULL;
 					g_hThreadHandle = NULL;
 
-					MessageBox(NULL, "Could not create thread!", "Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR);
+					ShowError("Could not create thread!");
 					break;
+				}
+
+				if (!g_pHookManager)
+				{
+					g_pHookManager.reset(new HookManager());
+					g_pHookManager->EnableHook();
 				}
 			}
 			break;
@@ -54,11 +57,16 @@ BOOL WINAPI DllMain(HMODULE _hDllHandle, DWORD _dwReason, LPVOID _lpReserved)
 		{
 			if (g_hThreadHandle != NULL)
 			{
+				if (g_pHookManager)
+				{
+					g_pHookManager->DisableHook();
+				}
+
 				::SetEvent(g_hWakeEvent);
 				
 				if (::WaitForSingleObject(g_hThreadHandle, INFINITE) != WAIT_OBJECT_0)
 				{
-					MessageBox(NULL, "Could not signal thread!", "Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR);
+					ShowError("Could not signal thread!");
 				}
 
 				::CloseHandle(g_hThreadHandle);
