@@ -112,11 +112,11 @@ void SetupLoaderDialog::ShowError(TCHAR *pszMessage, unsigned int uiError /*= ER
 	{
 		wchar_t szBuffer[1024] = {0};
 		std::swprintf(szBuffer, sizeof(szBuffer), L"%s [ErrorCode: 0x%08x]", pszMessage, uiError);
-		MessageBox(szBuffer, L"Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR);
+		MessageBox(szBuffer, L"Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR | MB_TOPMOST);
 		return;
 	}
 
-	MessageBox(pszMessage, L"Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR);
+	MessageBox(pszMessage, L"Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR | MB_TOPMOST);
 }
 
 void SetupLoaderDialog::OnBnClickedButtonLaunch()
