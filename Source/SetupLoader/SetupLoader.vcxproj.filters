@@ -21,7 +21,7 @@
     <ClInclude Include="CommandLineParser.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="StringLiteralSelector.hpp">
+    <ClInclude Include="LiteralSelector.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
