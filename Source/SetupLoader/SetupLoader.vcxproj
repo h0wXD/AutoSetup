@@ -150,7 +150,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CommandLineParser.hpp" />
     <ClInclude Include="stdafx.hpp" />
+    <ClInclude Include="StringLiteralSelector.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SetupLoader.cpp" />
