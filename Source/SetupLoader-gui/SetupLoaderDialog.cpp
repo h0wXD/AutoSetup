@@ -121,87 +121,43 @@ void SetupLoaderDialog::ShowError(TCHAR *pszMessage, unsigned int uiError /*= ER
 
 void SetupLoaderDialog::OnBnClickedButtonLaunch()
 {
-	STARTUPINFO startupInfo;
-	PROCESS_INFORMATION processInformation;
+	DWORD dwBinaryType = 0;
+	_TCHAR * pszArchitecture = nullptr;
 
-	memset(&startupInfo, 0, sizeof(startupInfo));
-	memset(&processInformation, 0, sizeof(processInformation));
-
-	BOOL bResult = ::CreateProcess(m_sFilePath, NULL, NULL, NULL, FALSE,
-        CREATE_SUSPENDED, NULL, NULL, &startupInfo, &processInformation);
-	
-	HANDLE processHandle = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, processInformation.dwProcessId);
-	if (processHandle != NULL)
+	if (::GetBinaryType(m_sFilePath, &dwBinaryType))
 	{
-		char szCurrentPath[MAX_PATH];
-		std::size_t nLength;
-		BOOL bIsWow64 = FALSE;
-		BOOL bError = FALSE;
-		DWORD dwLastError = ERROR_SUCCESS;
-		void * pLoadLibrary = nullptr;
-		void * pDllEntry = nullptr;
-
-		::IsWow64Process(processHandle, &bIsWow64);
-		
-		memset(szCurrentPath, 0, sizeof(szCurrentPath));
-		::GetModuleFileNameA(NULL, szCurrentPath, sizeof(szCurrentPath));    
-		
-		for (int i = std::strlen(szCurrentPath); i > 0; i--)
+		switch (dwBinaryType)
 		{
-			if (szCurrentPath[i] == '\\')
-			{
-				szCurrentPath[i + 1] = 0;
+			case SCS_32BIT_BINARY:
+				pszArchitecture = L"x86";
 				break;
-			}
+			case SCS_64BIT_BINARY:
+				pszArchitecture = L"x64";
+				break;
+			default:
+				ShowError(L"Selected binary file is not supported!");
+				return;
 		}
-
-		strcat_s(szCurrentPath, bIsWow64 ? "AutoSetup_x86.dll" : "AutoSetup_x64.dll");
-		nLength = std::strlen(szCurrentPath);
-
-		pLoadLibrary = (void *)::GetProcAddress(GetModuleHandle(L"kernel32.dll"), "LoadLibraryA");
-		
-		if (!pLoadLibrary)
-		{
-			ShowError(L"Couldn't find LoadLibrary!", ::GetLastError());
-		}
-		::SetLastError(ERROR_SUCCESS);
-
-		pDllEntry = (void *)::VirtualAllocEx(processHandle, NULL, nLength + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-
-		if (!pDllEntry)
-		{
-			bError |= TRUE;
-			ShowError(L"Couldn't allocate memory in suspended process!", ::GetLastError());
-		}
-		::SetLastError(ERROR_SUCCESS);
-
-		if (!bError &&
-			::WriteProcessMemory(processHandle, (LPVOID)pDllEntry, szCurrentPath, nLength, NULL) == FALSE ||
-			(dwLastError = ::GetLastError()))
-		{
-			bError |= TRUE;
-			ShowError(L"Couldn't write process memory!", dwLastError ? dwLastError : ::GetLastError());
-			::SetLastError(ERROR_SUCCESS);
-		}
-
-		if (!bError &&
-			(::CreateRemoteThread(processHandle, NULL, NULL, (LPTHREAD_START_ROUTINE)pLoadLibrary, pDllEntry, NULL, NULL)) == INVALID_HANDLE_VALUE ||
-			(dwLastError = ::GetLastError()))
-		{
-			// 0x00000005 = ACCESS_VIOLATION
-			ShowError(L"Couldn't create remote thread!", dwLastError ? dwLastError : ::GetLastError());
-			::SetLastError(ERROR_SUCCESS);
-		}
-
-		::CloseHandle(processHandle);
 	}
-	else
+	
+	STARTUPINFO startupInfo = {0};
+	PROCESS_INFORMATION processInformation = {0};
+	_TCHAR szCurrentPath[MAX_PATH] = {0};
+	_TCHAR szDllPath[MAX_PATH] = {0};
+	_TCHAR szLoaderPath[MAX_PATH] = {0};
+	_TCHAR szCommandLine[MAX_PATH * 3] = {0};
+	
+	::GetModuleFileName(NULL, szCurrentPath, sizeof(szCurrentPath));
+	wcsrchr(szCurrentPath, '\\')[1] = 0;
+	
+	swprintf(szDllPath, sizeof(szDllPath) - 1, L"%sAutoSetup_%s.dll", szCurrentPath, pszArchitecture);
+	swprintf(szLoaderPath, sizeof(szLoaderPath) - 1, L"%sSetupLoader_%s.exe", szCurrentPath, pszArchitecture);
+	swprintf(szCommandLine, sizeof(szCommandLine) - 1, L"\"%s\" -d \"%s\" \"%s\"", szLoaderPath, szDllPath, m_sFilePath);
+	
+	if (!::CreateProcess(szLoaderPath, szCommandLine, NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS, NULL, NULL, &startupInfo, &processInformation))
 	{
-		ShowError(L"Could not inject DLL!");
-	}
-
-	if (::ResumeThread(processInformation.hThread) == FALSE)
-	{
-		ShowError(L"Could not resume process!");
+		_TCHAR szErrorMessage[MAX_PATH] = {0};
+		swprintf(szErrorMessage, sizeof(szErrorMessage) - 1, L"Could not start loader.\r\nCommandLine: %s\r\n", szCommandLine);
+		ShowError(szErrorMessage);
 	}
 }
