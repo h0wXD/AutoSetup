@@ -112,6 +112,7 @@ bool LoadExeWithDll(const char *_pszExecutable, const char *_pszDll)
 			std::cout << "Architecture: 32-bit" << std::endl;
 	#endif
 #endif
+			::TerminateProcess(processHandle, 1);
 			return false;
 		}
 
@@ -122,6 +123,7 @@ bool LoadExeWithDll(const char *_pszExecutable, const char *_pszDll)
 		{
 			std::cout << "Could not find method " << LOADLIBRARY << "." << std::endl;
 			std::cout << "Module: " << KERNEL32_DLL << std::endl;
+			::TerminateProcess(processHandle, 1);
 			return false;
 		}
 
@@ -133,6 +135,7 @@ bool LoadExeWithDll(const char *_pszExecutable, const char *_pszDll)
 			dwLastError = ::GetLastError();
 			std::cout << "Could not allocate memory in suspended process." << std::endl;
 			std::printf("ErrorCode: 0x%8x (%d)\n", dwLastError, dwLastError);
+			::TerminateProcess(processHandle, 1);
 			return false;
 		}
 
@@ -143,6 +146,7 @@ bool LoadExeWithDll(const char *_pszExecutable, const char *_pszDll)
 			dwLastError = dwLastError ? dwLastError : ::GetLastError();
 			std::cout << "Could not write to process memory." << std::endl;
 			std::printf("ErrorCode: 0x%8x (%d)\n", dwLastError, dwLastError);
+			::TerminateProcess(processHandle, 1);
 			return false;
 		}
 		
@@ -153,6 +157,7 @@ bool LoadExeWithDll(const char *_pszExecutable, const char *_pszDll)
 			dwLastError = dwLastError ? dwLastError : ::GetLastError();
 			std::cout << "Could not create remote thread." << std::endl;
 			std::printf("ErrorCode: 0x%8x (%d)\n", dwLastError, dwLastError);
+			::TerminateProcess(processHandle, 1);
 			return false;
 		}
 	}
@@ -163,6 +168,7 @@ bool LoadExeWithDll(const char *_pszExecutable, const char *_pszDll)
 	{
 		std::cout << "Could not resume suspended process." << std::endl;
 		std::cout << "ThreadId: " << processInformation.hThread << std::endl;
+		::TerminateProcess(processHandle, 1);
 		return false;
 	}
 

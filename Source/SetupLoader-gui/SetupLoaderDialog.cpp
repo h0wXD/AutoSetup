@@ -5,6 +5,7 @@
 #include "afxdialogex.h"
 
 #include <string>
+#include <thread>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -38,7 +39,7 @@ BOOL SetupLoaderDialog::OnInitDialog()
 
 #ifdef _DEBUG
 	m_sFilePath = "C:/Share/Setups/Launchy2.5.exe";
-	GetDlgItem(IDC_EDIT_SETUPFILE)->SetWindowTextW(m_sFilePath);
+	GetDlgItem(IDC_EDIT_SETUPFILE)->SetWindowText(m_sFilePath);
 	
 	GetDlgItem(IDC_BUTTON_LAUNCH)->EnableWindow(m_sFilePath.GetLength() != 0);
 
@@ -89,18 +90,18 @@ void SetupLoaderDialog::OnBnClickedCancel()
 void SetupLoaderDialog::OnBnClickedButtonBrowse()
 {
 	CString sFileName;
-	wchar_t szFileFilter[] = { L"Setup Files (*.exe;*.msi)|*.exe;*.msi|All Files (*.*)|*.*||" };
-	CFileDialog openFileDialog(TRUE, L"*.exe", NULL, 0, szFileFilter, NULL); // TODO: hWnd?
+	TCHAR szFileFilter[] = { "Setup Files (*.exe;*.msi)|*.exe;*.msi|All Files (*.*)|*.*||" };
+	CFileDialog openFileDialog(TRUE, "*.exe", NULL, 0, szFileFilter, NULL); // TODO: hWnd?
 	
 	if (openFileDialog.DoModal() == IDOK)
 	{
 		m_sFilePath = openFileDialog.GetPathName();
-		GetDlgItem(IDC_EDIT_SETUPFILE)->SetWindowTextW(openFileDialog.GetFileName());
+		GetDlgItem(IDC_EDIT_SETUPFILE)->SetWindowText(openFileDialog.GetFileName());
 	}
 	else
 	{
 		m_sFilePath = "";
-		GetDlgItem(IDC_EDIT_SETUPFILE)->SetWindowTextW(L"");
+		GetDlgItem(IDC_EDIT_SETUPFILE)->SetWindowText("");
 	}
 
 	GetDlgItem(IDC_BUTTON_LAUNCH)->EnableWindow(m_sFilePath.GetLength() != 0);
@@ -110,13 +111,13 @@ void SetupLoaderDialog::ShowError(TCHAR *pszMessage, unsigned int uiError /*= ER
 {
 	if (uiError)
 	{
-		wchar_t szBuffer[1024] = {0};
-		std::swprintf(szBuffer, sizeof(szBuffer), L"%s [ErrorCode: 0x%08x]", pszMessage, uiError);
-		MessageBox(szBuffer, L"Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR | MB_TOPMOST);
+		TCHAR szBuffer[1024] = {0};
+		sprintf_s(szBuffer, "%s [ErrorCode: 0x%08x]", pszMessage, uiError);
+		MessageBox(szBuffer, "Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR | MB_TOPMOST);
 		return;
 	}
 
-	MessageBox(pszMessage, L"Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR | MB_TOPMOST);
+	MessageBox(pszMessage, "Error Occurred!", MB_ICONEXCLAMATION | MB_ICONERROR | MB_TOPMOST);
 }
 
 void SetupLoaderDialog::OnBnClickedButtonLaunch()
@@ -129,35 +130,100 @@ void SetupLoaderDialog::OnBnClickedButtonLaunch()
 		switch (dwBinaryType)
 		{
 			case SCS_32BIT_BINARY:
-				pszArchitecture = L"x86";
+				pszArchitecture = "x86";
 				break;
 			case SCS_64BIT_BINARY:
-				pszArchitecture = L"x64";
+				pszArchitecture = "x64";
 				break;
 			default:
-				ShowError(L"Selected binary file is not supported!");
+				ShowError("Selected binary file is not supported!");
 				return;
 		}
 	}
 	
 	STARTUPINFO startupInfo = {0};
 	PROCESS_INFORMATION processInformation = {0};
+	SECURITY_ATTRIBUTES securityAttributes = {0};
+	char szTempOutputBuffer[1024] = {0};
 	_TCHAR szCurrentPath[MAX_PATH] = {0};
 	_TCHAR szDllPath[MAX_PATH] = {0};
 	_TCHAR szLoaderPath[MAX_PATH] = {0};
 	_TCHAR szCommandLine[MAX_PATH * 3] = {0};
+	HANDLE hChildOutputRead = INVALID_HANDLE_VALUE;
+	HANDLE hChildOutputWrite = INVALID_HANDLE_VALUE;
+	DWORD dwExitCode = 0;
+	DWORD dwBytesRead;
+	DWORD dwBytesAvailable;
+	DWORD dwBufferSpaceRemainder = sizeof(szTempOutputBuffer) - 1;
+	char * pszWriteOffset = szTempOutputBuffer;
 	
-	::GetModuleFileName(NULL, szCurrentPath, sizeof(szCurrentPath));
-	wcsrchr(szCurrentPath, '\\')[1] = 0;
-	
-	swprintf(szDllPath, sizeof(szDllPath) - 1, L"%sAutoSetup_%s.dll", szCurrentPath, pszArchitecture);
-	swprintf(szLoaderPath, sizeof(szLoaderPath) - 1, L"%sSetupLoader_%s.exe", szCurrentPath, pszArchitecture);
-	swprintf(szCommandLine, sizeof(szCommandLine) - 1, L"\"%s\" -d \"%s\" \"%s\"", szLoaderPath, szDllPath, m_sFilePath);
-	
-	if (!::CreateProcess(szLoaderPath, szCommandLine, NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS, NULL, NULL, &startupInfo, &processInformation))
+	memset(&securityAttributes, 0, sizeof(securityAttributes));
+	securityAttributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+	securityAttributes.bInheritHandle = TRUE;
+	securityAttributes.lpSecurityDescriptor = NULL;
+
+	if (!::CreatePipe(&hChildOutputRead, &hChildOutputWrite, &securityAttributes, 0))
 	{
-		_TCHAR szErrorMessage[MAX_PATH] = {0};
-		swprintf(szErrorMessage, sizeof(szErrorMessage) - 1, L"Could not start loader.\r\nCommandLine: %s\r\n", szCommandLine);
-		ShowError(szErrorMessage);
+		ShowError("Could not create pipe!", ::GetLastError());
+		return;
 	}
+
+	startupInfo.cb			= sizeof(startupInfo);
+	startupInfo.hStdInput	= NULL;
+	startupInfo.hStdOutput	= hChildOutputWrite;
+	startupInfo.hStdError	= hChildOutputWrite;
+	startupInfo.dwFlags		|= STARTF_USESTDHANDLES;
+	startupInfo.wShowWindow	|= SW_HIDE;
+
+	::GetModuleFileName(NULL, szCurrentPath, sizeof(szCurrentPath));
+	strrchr(szCurrentPath, '\\')[1] = 0;
+	
+	sprintf_s(szDllPath, "%sAutoSetup_%s.dll", szCurrentPath, pszArchitecture);
+	sprintf_s(szLoaderPath, "%sSetupLoader_%s.exe", szCurrentPath, pszArchitecture);
+	sprintf_s(szCommandLine, "\"%s\" -d \"%s\" \"%s\"", szLoaderPath, szDllPath, m_sFilePath);
+
+	if (!::CreateProcess(szLoaderPath, szCommandLine, NULL, NULL, TRUE, NORMAL_PRIORITY_CLASS|CREATE_NO_WINDOW, NULL, NULL, &startupInfo, &processInformation))
+	{
+		_TCHAR szErrorMessage[MAX_PATH * 3] = {0};
+		sprintf_s(szErrorMessage, "Unable to start the SetupLoader.\r\nPlease verify whether the file exists.\r\nCommandLine: %s\r\n", szCommandLine);
+		ShowError(szErrorMessage, ::GetLastError());
+		::CloseHandle(hChildOutputRead);
+		::CloseHandle(hChildOutputWrite);
+		return;
+	}
+
+	while (true)
+	{
+		dwBytesAvailable = 0;
+
+		::WaitForSingleObject(processInformation.hProcess, 25);
+		::GetExitCodeProcess(processInformation.hProcess, &dwExitCode);
+		::PeekNamedPipe(hChildOutputRead, NULL, 0, NULL, &dwBytesAvailable, NULL);
+
+		if (dwBytesAvailable > 0 &&
+			dwBufferSpaceRemainder != 0)
+		{
+			dwBytesRead = 0;
+
+			::ReadFile(hChildOutputRead, pszWriteOffset, dwBufferSpaceRemainder, &dwBytesRead, NULL);
+
+			dwBufferSpaceRemainder -= dwBytesRead;
+			pszWriteOffset += dwBytesRead;
+		}
+		else
+		{
+			if (dwExitCode != STILL_ACTIVE)
+			{
+				break;
+			}
+		}
+	}
+
+	if (dwExitCode == 1)
+	{
+		ShowError(szTempOutputBuffer);
+	}
+	
+	::CloseHandle(hChildOutputRead);
+	::CloseHandle(hChildOutputWrite);
 }
