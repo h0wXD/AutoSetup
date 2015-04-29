@@ -16,9 +16,15 @@ HookManager::HookManager() :
 
 	m_hooks.push_back(std::unique_ptr<Hook>(new Hook(USER32_DLL, "CreateWindowExA", &Hook_CreateWindowExA, (LPVOID *)&fpWin_CreateWindowExA)));
 	m_hooks.push_back(std::unique_ptr<Hook>(new Hook(USER32_DLL, "CreateWindowExW", &Hook_CreateWindowExW, (LPVOID *)&fpWin_CreateWindowExW)));
-
+	
 	m_hooks.push_back(std::unique_ptr<Hook>(new Hook(USER32_DLL, "GetMessageA", &Hook_GetMessageA, (LPVOID *)&fpWin_GetMessageA)));
 	m_hooks.push_back(std::unique_ptr<Hook>(new Hook(USER32_DLL, "GetMessageW", &Hook_GetMessageW, (LPVOID *)&fpWin_GetMessageW)));
+	
+	m_hooks.push_back(std::unique_ptr<Hook>(new Hook(KERNEL32_DLL, "ExitProcess", &Hook_ExitProcess, (LPVOID *)&fpWin_ExitProcess)));
+	m_hooks.push_back(std::unique_ptr<Hook>(new Hook(KERNEL32_DLL, "TerminateProcess", &Hook_TerminateProcess, (LPVOID *)&fpWin_TerminateProcess)));
+	
+	m_hooks.push_back(std::unique_ptr<Hook>(new Hook(KERNEL32_DLL, "CreateProcessA", &Hook_CreateProcessA, (LPVOID *)&fpWin_CreateProcessA)));
+	m_hooks.push_back(std::unique_ptr<Hook>(new Hook(KERNEL32_DLL, "CreateProcessW", &Hook_CreateProcessW, (LPVOID *)&fpWin_CreateProcessW)));
 }
 
 void HookManager::EnableHook()
@@ -28,8 +34,6 @@ void HookManager::EnableHook()
 		return;
 	}
 	m_bHooked = true;
-
-	MessageBoxA(NULL, "LET THE FUN BEGIN", "HOOKED", MB_OK | MB_TOPMOST | MB_ICONINFORMATION | MB_TOPMOST);
 
 	auto itr = m_hooks.begin();
 	while (itr != m_hooks.end())
@@ -51,10 +55,13 @@ void HookManager::EnableHook()
 			char szError[1024] = {0};
 			sprintf_s(szError, "EnableHook failed!\r\nError code: %d (0x%08x)\r\nModule: %s\r\nFunction: %s", nStatus, nStatus, Narrow(pHook->GetModule()).c_str(), pHook->GetFunction());
 			ShowError(szError);
+			::ExitProcess(1);
 		}
 
 		itr++;
 	}
+
+	m_eventHandler.OnStartProcess(::GetModuleHandle(NULL));
 }
 
 void HookManager::DisableHook()
@@ -70,12 +77,16 @@ void HookManager::DisableHook()
 
 HWND HookManager::CreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam)
 {
-	return fpWin_CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
+	HWND hWnd = fpWin_CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
+	m_eventHandler.OnWindowCreated(dwExStyle, dwStyle, Widen(lpWindowName), hWnd);
+	return hWnd;
 }
 
 HWND HookManager::CreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam)
 {
-	return fpWin_CreateWindowExW(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
+	HWND hWnd = fpWin_CreateWindowExW(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
+	m_eventHandler.OnWindowCreated(dwExStyle, dwStyle, std::wstring(lpWindowName), hWnd);
+	return hWnd;
 }
 
 BOOL HookManager::GetMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax)
@@ -84,7 +95,6 @@ BOOL HookManager::GetMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT w
 
 	if (lpMsg->message == WM_QUIT)
 	{
-		MessageBoxA(NULL, "LET THE FUN END", "UNHOOKED", MB_OK | MB_TOPMOST | MB_ICONINFORMATION | MB_TOPMOST);
 	}
 
 	return bReturn;
@@ -93,4 +103,38 @@ BOOL HookManager::GetMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT w
 BOOL HookManager::GetMessageW(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax)
 {
 	return GetMessageA(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax);
+}
+
+VOID HookManager::ExitProcess(UINT uExitCode)
+{
+	m_eventHandler.OnExitProcess(::GetModuleHandle(NULL), uExitCode);
+	return fpWin_ExitProcess(uExitCode);
+}
+
+BOOL HookManager::TerminateProcess(HANDLE hProcess, UINT uExitCode)
+{
+	m_eventHandler.OnExitProcess(hProcess, uExitCode);
+	return fpWin_TerminateProcess(hProcess, uExitCode);
+}
+
+BOOL HookManager::CreateProcessA(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags, LPVOID lpEnvironment, LPCSTR lpCurrentDirectory, LPSTARTUPINFOA lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation)
+{
+	m_eventHandler.OnProcessCreating(bInheritHandles, dwCreationFlags);
+
+	BOOL bReturn = fpWin_CreateProcessA(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
+
+	m_eventHandler.OnProcessCreated(Widen(lpApplicationName), Widen(lpCommandLine), bInheritHandles, dwCreationFlags, Widen(lpCurrentDirectory), lpProcessInformation);
+
+	return bReturn;
+}
+
+BOOL HookManager::CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags, LPVOID lpEnvironment, LPCWSTR lpCurrentDirectory, LPSTARTUPINFOW lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation)
+{
+	m_eventHandler.OnProcessCreating(bInheritHandles, dwCreationFlags);
+
+	BOOL bReturn = fpWin_CreateProcessW(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
+	
+	m_eventHandler.OnProcessCreated(std::wstring(lpApplicationName), std::wstring(lpCommandLine), bInheritHandles, dwCreationFlags, std::wstring(lpCurrentDirectory), lpProcessInformation);
+	
+	return bReturn;
 }

@@ -20,10 +20,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AutoSetup.cpp" />
+    <ClCompile Include="EventHandler.cpp" />
     <ClCompile Include="HookManager.cpp" />
     <ClCompile Include="Windows.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="EventHandler.hpp" />
     <ClInclude Include="Hook.hpp" />
     <ClInclude Include="HookManager.hpp" />
     <ClInclude Include="stdafx.hpp" />

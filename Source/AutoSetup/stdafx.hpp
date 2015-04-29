@@ -19,7 +19,7 @@ inline void ShowError(const char * _pszMessage)
 
 #pragma warning(disable:4244)
 #pragma warning(disable:4018)
-inline std::string Narrow(const std::wstring & _sSomeString)
+inline std::string Narrow(const std::wstring &_sSomeString)
 {
     std::ostringstream sstream;
     const std::ctype<char> & ctfacet = std::use_facet<std::ctype<char>>(sstream.getloc());
@@ -32,4 +32,27 @@ inline std::string Narrow(const std::wstring & _sSomeString)
 	sstream << '\0';
 	
     return sstream.str();
+}
+inline std::string Narrow(const wchar_t *_pszSomeString)
+{
+	return _pszSomeString == nullptr ? std::string() : Narrow(std::wstring(_pszSomeString));
+}
+
+inline std::wstring Widen(const std::string &_sSomeString)
+{
+    std::wostringstream wstm;
+    const std::ctype<wchar_t> & ctfacet = std::use_facet<std::ctype<wchar_t>>(wstm.getloc());
+	
+    for (size_t i = 0; i < _sSomeString.size(); i++)
+	{
+		wstm << ctfacet.widen(_sSomeString[i]);
+	}
+
+	wstm << L'\0';
+
+    return wstm.str();
+}
+inline std::wstring Widen(const char *_pszSomeString)
+{
+	return _pszSomeString == nullptr ? std::wstring() : Widen(std::string(_pszSomeString));
 }

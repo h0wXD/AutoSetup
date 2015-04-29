@@ -18,3 +18,14 @@ typedef BOOL		(WINAPI	*GetMessageA_t)				(LPMSG, HWND, UINT, UINT);
 typedef BOOL		(WINAPI	*GetMessageW_t)				(LPMSG, HWND, UINT, UINT);
 BOOL WINAPI			Hook_GetMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax);
 BOOL WINAPI			Hook_GetMessageW(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax);
+
+typedef VOID		(WINAPI *ExitProcess_t)				(UINT);
+VOID WINAPI			Hook_ExitProcess(UINT uExitCode);
+
+typedef BOOL		(WINAPI *TerminateProcess_t)		(HANDLE, UINT);
+BOOL WINAPI			Hook_TerminateProcess(HANDLE hProcess, UINT uExitCode);
+
+typedef BOOL		(WINAPI *CreateProcessA_t)			(LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD, LPVOID, LPCSTR, LPSTARTUPINFOA, LPPROCESS_INFORMATION);
+typedef BOOL		(WINAPI *CreateProcessW_t)			(LPCWSTR, LPWSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD, LPVOID, LPCWSTR, LPSTARTUPINFOW, LPPROCESS_INFORMATION);
+BOOL WINAPI			Hook_CreateProcessA(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags, LPVOID lpEnvironment, LPCSTR lpCurrentDirectory, LPSTARTUPINFOA lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation);
+BOOL WINAPI			Hook_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags, LPVOID lpEnvironment, LPCWSTR lpCurrentDirectory, LPSTARTUPINFOW lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation);
